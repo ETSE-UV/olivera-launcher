@@ -1,23 +1,29 @@
 // Il motore dell'app: accende la catena, la guarda vivere, la spegne.
 //
-// Non c'e' logica della guida qui dentro, e non deve essercene. L'app lancia
-// `scripts/serve_mac.sh` esattamente come lo lancerebbe un terminale, legge
-// quello che stampa e interroga /health. Il giorno che la catena cambia, cambia
-// lo script: l'app continua a funzionare senza sapere cos'e' cambiato.
-//
-// Questa e' anche la ragione per cui la prova e la sonda del discovery girano
-// come processi Python del progetto invece che essere riscritte in Swift: la
-// verita' su come si parla al server sta in un posto solo.
+// Non c'e' logica della guida qui dentro, e non c'e' piu' nemmeno niente che
+// sappia di macOS: quello sta in Piattaforma.swift. Qui restano tre cose - far
+// partire un comando, leggere le righe di stato, chiedere /health - e nessuna
+// delle tre cambia passando a Windows.
 
 import Foundation
 import SwiftUI
 
-/// A che punto e' la catena.
+/// A che punto e' la catena. Sono le stesse fasi che dichiara `olivera/stato.py`:
+/// se ne aggiungono una la', si aggiunge un caso qui, e il compilatore lo dice.
 enum Fase: Equatable {
     case spenta
-    case avvio(String)   // cosa sta facendo adesso
+    case avvio(String)
     case pronta
     case caduta(String)
+
+    /// Dal nome che arriva nel JSON.
+    static func da(_ nome: String, testo: String) -> Fase {
+        switch nome {
+        case "pronta": return .pronta
+        case "errore": return .caduta(testo)
+        default: return .avvio(testo)
+        }
+    }
 
     var descrizione: String {
         switch self {
@@ -36,9 +42,15 @@ enum Fase: Equatable {
         case .caduta: return .red
         }
     }
+
+    /// Quanto siamo avanti, da 0 a 1. Le fasi sono note e in ordine, quindi la
+    /// barra puo' essere una barra vera invece di una rotella che gira.
+    static func avanzamento(_ nome: String) -> Double {
+        let ordine = ["avvio": 0.15, "llm": 0.35, "modelli": 0.6, "scaldo": 0.85, "pronta": 1.0]
+        return ordine[nome] ?? 0.1
+    }
 }
 
-/// Come e' configurata la voce. I numeri sono misurati, e stanno in PIANO-MAC.md.
 enum Voce: String, CaseIterable, Identifiable {
     case kokoro, sistema, clonata
     var id: String { rawValue }
@@ -46,14 +58,14 @@ enum Voce: String, CaseIterable, Identifiable {
     var etichetta: String {
         switch self {
         case .kokoro: return "Kokoro"
-        case .sistema: return "Voce di sistema"
-        case .clonata: return "Voce clonata"
+        case .sistema: return "Di sistema"
+        case .clonata: return "Clonata"
         }
     }
 
     var nota: String {
         switch self {
-        case .kokoro: return "neurale, in tempo reale"
+        case .kokoro: return "neurale, 0,18 di fattore di tempo reale"
         case .sistema: return "0,3 s piu' rapida, ma si sente che e' una macchina"
         case .clonata: return "fuori dal tempo reale su questo Mac: solo per ascoltarla"
         }
@@ -72,12 +84,9 @@ enum Taglia: String, CaseIterable, Identifiable {
     case q4 = "q4_K_M"
     case q8 = "q8_0"
     var id: String { rawValue }
-
     var etichetta: String { self == .q4 ? "4 bit" : "8 bit" }
     var nota: String {
-        self == .q4
-            ? "prima frase in 0,9 s, 3,9 GB"
-            : "risposte un filo migliori, +0,6 s e +1,2 GB"
+        self == .q4 ? "prima frase in 0,9 s, 3,9 GB" : "risposte un filo migliori, +0,6 s e +1,2 GB"
     }
 }
 
@@ -87,7 +96,6 @@ struct Salute: Equatable {
     var tts = ""
     var vlm = ""
     var pezzi = 0
-    var profilo = ""
 }
 
 struct ServerVisto: Identifiable, Equatable {
@@ -101,6 +109,7 @@ struct ServerVisto: Identifiable, Equatable {
 @MainActor
 final class Motore: ObservableObject {
     @Published var fase: Fase = .spenta
+    @Published var avanzamento: Double = 0
     @Published var salute: Salute?
     @Published var righe: [String] = []
     @Published var indirizzo: String = "127.0.0.1"
@@ -109,7 +118,6 @@ final class Motore: ObservableObject {
     @Published var esitoProva: String?
     @Published var provaInCorso = false
     @Published var requisiti: [Requisito] = []
-    /// Quanta memoria e' riutilizzabile adesso, in percentuale. Vedi `misuraLaMemoria`.
     @Published var liberaPercento: Double = 0
 
     @AppStorage("voce") var voce: Voce = .kokoro
@@ -118,12 +126,15 @@ final class Motore: ObservableObject {
     @AppStorage("porta") var porta: Int = 8765
 
     let radice: URL
+    let piattaforma: Piattaforma
     private var processo: Process?
     private var vigile: Timer?
+    private var resto = ""   // meta' riga rimasta dalla lettura precedente
 
-    init(radice: URL) {
+    init(radice: URL, piattaforma: Piattaforma = piattaformaCorrente()) {
         self.radice = radice
-        self.indirizzo = Motore.indirizzoLocale()
+        self.piattaforma = piattaforma
+        self.indirizzo = piattaforma.indirizzoLocale()
         controllaRequisiti()
         misuraLaMemoria()
     }
@@ -133,35 +144,23 @@ final class Motore: ObservableObject {
     func accendi() {
         guard processo == nil else { return }
         righe = []
-        fase = .avvio("avvio dei modelli...")
+        resto = ""
+        avanzamento = 0
+        fase = .avvio("avvio...")
         esitoProva = nil
 
+        let (eseguibile, argomenti) = piattaforma.comando(
+            piattaforma.avvio(porta: porta, discovery: rispondiAlDiscovery)
+        )
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        p.arguments = ["-lc", "exec ./scripts/serve_mac.sh"]
+        p.executableURL = eseguibile
+        p.arguments = argomenti
         p.currentDirectoryURL = radice
-
-        // UN AMBIENTE PULITO, NON QUELLO DI CHI HA APERTO L'APP.
-        //
-        // Ereditare l'ambiente del processo padre sembra prudente e non lo e':
-        // a seconda di come l'app viene aperta - dal Finder, dal Dock, da un
-        // terminale, da un'altra applicazione - il figlio si trova addosso
-        // variabili diverse, e il servizio si comporta in modo diverso senza
-        // che si capisca perche'. Qui si passa il minimo indispensabile, piu'
-        // le scelte fatte nella finestra. Il resto lo mette la shell di login.
-        let vecchio = ProcessInfo.processInfo.environment
-        var ambiente: [String: String] = [:]
-        for chiave in ["HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "LC_ALL", "PATH"] {
-            if let valore = vecchio[chiave] { ambiente[chiave] = valore }
-        }
-        ambiente["OLIVERA_TTS"] = voce.variabile
-        ambiente["OLIVERA_QUANT"] = taglia.rawValue
-        ambiente["OLIVERA_PORT"] = String(porta)
-        ambiente["OLIVERA_DISCOVERY"] = rispondiAlDiscovery ? "1" : "0"
-        // Senza questo Python bufferizza e il log arriva a blocchi: l'avvio
-        // sembra piantato per venti secondi e poi salta alla fine.
-        ambiente["PYTHONUNBUFFERED"] = "1"
-        p.environment = ambiente
+        p.environment = Guscio.ambientePulito([
+            "OLIVERA_TTS": voce.variabile,
+            "OLIVERA_QUANT": taglia.rawValue,
+            "OLIVERA_PORT": String(porta),
+        ])
 
         let tubo = Pipe()
         p.standardOutput = tubo
@@ -180,18 +179,19 @@ final class Motore: ObservableObject {
                 self.processo = nil
                 self.salute = nil
                 if case .spenta = self.fase { return }  // spegnimento voluto
+                // Se il servizio ha gia' detto PERCHE' sta morendo, quella frase
+                // vale piu' di "codice 1": non la si copre con il riassunto.
+                if case .caduta = self.fase { return }
 
                 // MORIRE DURANTE L'AVVIO E' SEMPRE UN GUASTO, ANCHE CON CODICE ZERO.
-                //
-                // Lo script ha un trap di uscita che chiude i figli, e il trap
-                // rimette a posto il codice di ritorno: uno script che muore
-                // sulla seconda riga puo' presentarsi come un'uscita pulita.
-                // La prima volta e' costata un'ora, perche' l'app tornava
-                // semplicemente a "spenta" come se il pulsante non fosse stato
-                // premuto. Se non siamo mai arrivati a "pronta", e' caduta.
+                // Prima in mezzo c'era una shell con un trap di uscita che
+                // rimetteva a posto il codice di ritorno, e uno script morto
+                // sulla seconda riga si presentava come un'uscita pulita.
+                // Adesso in mezzo non c'e' piu' niente, ma la regola resta:
+                // se non siamo arrivati a "pronta", e' caduta.
                 if stavaPartendo {
                     let ultima = self.righe.last(where: {
-                        $0.contains("rror") || $0.contains("line ") || $0.contains("not found")
+                        $0.contains("rror") || $0.contains("Error") || $0.contains("manca")
                     }) ?? self.righe.last ?? "nessun dettaglio"
                     self.fase = .caduta("non e' partita: \(ultima)")
                 } else {
@@ -213,32 +213,31 @@ final class Motore: ObservableObject {
 
     func spegni() {
         fase = .spenta
+        avanzamento = 0
         vigile?.invalidate()
         vigile = nil
         salute = nil
+        // Basta chiudere questo: il lanciatore chiude i suoi figli da solo, su
+        // ogni sistema, e non lascia orfani. Prima serviva uno script di
+        // pulizia perche' in mezzo c'era una shell che non li conosceva tutti.
         processo?.terminate()
         processo = nil
-        // La rete di sicurezza: se qualcosa e' sopravvissuto al segnale, lo
-        // script di arresto lo chiude per nome. Senza questo un llama-server
-        // orfano si tiene quattro giga fino al riavvio della macchina.
-        let pulizia = Process()
-        pulizia.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        pulizia.arguments = ["-lc", "./scripts/stop_mac.sh"]
-        pulizia.currentDirectoryURL = radice
-        try? pulizia.run()
     }
 
+    /// Legge quello che arriva, una riga alla volta, tenendo da parte la meta'
+    /// riga che si e' spezzata fra due letture. Senza questo, una riga di stato
+    /// tagliata a meta' dal buffer non viene riconosciuta e la barra si ferma.
     private func assorbi(_ testo: String) {
-        for riga in testo.split(separator: "\n", omittingEmptySubsequences: false) {
-            let r = String(riga)
-            if r.trimmingCharacters(in: .whitespaces).isEmpty { continue }
-            righe.append(r)
+        resto += testo
+        var pezzi = resto.components(separatedBy: "\n")
+        resto = pezzi.removeLast()
+        for riga in pezzi where !riga.trimmingCharacters(in: .whitespaces).isEmpty {
+            righe.append(riga)
             if righe.count > 600 { righe.removeFirst(righe.count - 600) }
-
-            if r.contains("llama.cpp:") { fase = .avvio("carico il modello di linguaggio...") }
-            if r.contains("backend pronti") { fase = .avvio("scaldo i modelli...") }
-            if r.contains("warmup in") { fase = .avvio("quasi pronta...") }
-            if r.contains("in ascolto su") { fase = .pronta }
+            if let s = Stato.leggi(riga) {
+                fase = .da(s.fase, testo: s.testo)
+                avanzamento = Fase.avanzamento(s.fase)
+            }
         }
     }
 
@@ -255,57 +254,6 @@ final class Motore: ObservableObject {
         }
     }
 
-    /// Quanta memoria e' davvero disponibile adesso.
-    ///
-    /// QUESTA MISURA ESISTE PER UN POMERIGGIO INTERO. Su questo Mac da sedici
-    /// gigabyte, con Chrome, Drive che sincronizza e mezza dozzina di sessioni
-    /// aperte, la catena parte, i tre processi si vedono in Monitoraggio
-    /// Attivita', e poi il servizio smette di rispondere. Non e' bloccato: e'
-    /// stato paginato via per intero - `rss` a zero, CPU a zero - e il sistema
-    /// non lo rimette dentro. Da fuori sembra un guasto del codice, e non lo e'.
-    ///
-    /// E NON SI GUARDA LO SWAP. Anche questo e' costato tempo: `vm.swapusage`
-    /// dice quanto e' grande il file di scambio, e quel file macOS non lo
-    /// rimpicciolisce mai. Dopo aver chiuso tutto continuava a dire 7,9 GB
-    /// mentre la memoria libera era gia' tornata al 71%. Il numero che conta e'
-    /// quanta memoria e' riutilizzabile adesso: libera piu' inattiva, che il
-    /// sistema puo' riprendersi quando serve.
-    func misuraLaMemoria() {
-        let stato = Motore.esegui(radice: radice, comando: "vm_stat; sysctl -n hw.memsize")
-        var pagine: [String: Double] = [:]
-        var totaleByte: Double = 0
-        var dimensionePagina: Double = 16384
-
-        for riga in stato.split(separator: "\n") {
-            if riga.hasPrefix("Mach Virtual Memory Statistics"),
-               let p = riga.components(separatedBy: "page size of ").last,
-               let valore = Double(p.components(separatedBy: " ").first ?? "") {
-                dimensionePagina = valore
-            } else if riga.contains(":") {
-                let pezzi = riga.components(separatedBy: ":")
-                let chiave = pezzi[0].trimmingCharacters(in: .whitespaces)
-                let valore = pezzi.count > 1
-                    ? Double(pezzi[1].trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ".", with: "")) ?? 0
-                    : 0
-                pagine[chiave] = valore
-            } else if let soloNumero = Double(riga.trimmingCharacters(in: .whitespaces)) {
-                totaleByte = soloNumero
-            }
-        }
-
-        guard totaleByte > 0 else { return }
-        let riutilizzabile = (pagine["Pages free"] ?? 0)
-            + (pagine["Pages inactive"] ?? 0)
-            + (pagine["Pages speculative"] ?? 0)
-            + (pagine["Pages purgeable"] ?? 0)
-        liberaPercento = (riutilizzabile * dimensionePagina) / totaleByte * 100
-    }
-
-    /// Sotto questa soglia la catena entra in memoria a fatica: la guida serve
-    /// circa cinque gigabyte fra modello di linguaggio, ascolto e voce.
-    var memoriaStretta: Bool { liberaPercento > 0 && liberaPercento < 35 }
-    var memoriaCritica: Bool { liberaPercento > 0 && liberaPercento < 20 }
-
     private func chiediSalute() async {
         guard let url = URL(string: "http://127.0.0.1:\(porta)/health") else { return }
         var richiesta = URLRequest(url: url)
@@ -321,20 +269,31 @@ final class Motore: ObservableObject {
         s.tts = json["tts"] as? String ?? ""
         s.vlm = json["vlm"] as? String ?? ""
         s.pezzi = json["chunks"] as? Int ?? 0
-        s.profilo = json["profile"] as? String ?? ""
         salute = s
-        if case .avvio = fase { fase = .pronta }
     }
+
+    /// Quanta memoria e' davvero disponibile adesso.
+    ///
+    /// Con la macchina piena il servizio viene paginato via per intero - `rss` a
+    /// zero, CPU a zero - e il sistema non lo rimette dentro: da fuori e'
+    /// identico a un blocco. E' costato un pomeriggio, due volte.
+    func misuraLaMemoria() {
+        let valore = piattaforma.memoriaLibera(radice: radice)
+        if valore > 0 { liberaPercento = valore }
+    }
+
+    /// Sotto queste soglie la catena entra in memoria a fatica: serve circa
+    /// mezza dozzina di gigabyte fra modello di linguaggio, ascolto e voce.
+    var memoriaStretta: Bool { liberaPercento > 0 && liberaPercento < 35 }
+    var memoriaCritica: Bool { liberaPercento > 0 && liberaPercento < 20 }
 
     // MARK: - chi risponde sulla rete
 
     func sondaLaRete() {
         sondaInCorso = true
-        Task.detached { [radice] in
-            let uscita = Motore.esegui(
-                radice: radice,
-                comando: "./.venv/bin/python -m olivera.tools.chi_risponde --json"
-            )
+        let comando = piattaforma.sonda()
+        Task.detached { [radice, piattaforma] in
+            let uscita = Guscio.esegui(piattaforma: piattaforma, radice: radice, comando: comando)
             var trovati: [ServerVisto] = []
             if
                 let dati = uscita.data(using: .utf8),
@@ -366,11 +325,9 @@ final class Motore: ObservableObject {
     func prova() {
         provaInCorso = true
         esitoProva = nil
-        Task.detached { [radice, porta] in
-            let uscita = Motore.esegui(
-                radice: radice,
-                comando: "./.venv/bin/python scripts/prova_rapida.py --url ws://127.0.0.1:\(porta)/ws --json"
-            )
+        let comando = piattaforma.prova(porta: porta)
+        Task.detached { [radice, piattaforma] in
+            let uscita = Guscio.esegui(piattaforma: piattaforma, radice: radice, comando: comando)
             let testo = Motore.leggiProva(uscita)
             await MainActor.run {
                 self.esitoProva = testo
@@ -384,7 +341,6 @@ final class Motore: ObservableObject {
             let dati = uscita.data(using: .utf8),
             let json = try? JSONSerialization.jsonObject(with: dati) as? [String: Any]
         else { return "la prova non ha risposto" }
-
         if let errore = json["errore"] as? String { return "non risponde: \(errore)" }
 
         let ordine = json["ordine"] as? [String: Any] ?? [:]
@@ -406,108 +362,19 @@ final class Motore: ObservableObject {
 
     // MARK: - cosa manca prima di poter accendere
 
-    struct Requisito: Identifiable {
-        var id: String { nome }
-        var nome: String
-        var presente: Bool
-        var comeSiRimette: String
-    }
-
-    func controllaRequisiti() {
-        let fm = FileManager.default
-        var elenco: [Requisito] = []
-
-        func nelPercorso(_ eseguibile: String) -> Bool {
-            !Motore.esegui(radice: radice, comando: "command -v \(eseguibile) || true")
-                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
-
-        elenco.append(.init(
-            nome: "ambiente Python",
-            presente: fm.fileExists(atPath: radice.appendingPathComponent(".venv/bin/python").path),
-            comeSiRimette: "python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt"))
-        elenco.append(.init(
-            nome: "whisper.cpp",
-            presente: nelPercorso("whisper-server"),
-            comeSiRimette: "brew install whisper-cpp"))
-        elenco.append(.init(
-            nome: "llama.cpp",
-            presente: nelPercorso("llama-server"),
-            comeSiRimette: "brew install llama.cpp"))
-        elenco.append(.init(
-            nome: "Ollama",
-            presente: nelPercorso("ollama"),
-            comeSiRimette: "brew install ollama"))
-
-        let cache = fm.homeDirectoryForCurrentUser.appendingPathComponent(".cache")
-        elenco.append(.init(
-            nome: "pesi dell'ascolto",
-            presente: fm.fileExists(atPath: cache.appendingPathComponent("whisper-cpp/ggml-large-v3-turbo-q8_0.bin").path),
-            comeSiRimette: "./scripts/setup_mac.sh"))
-        elenco.append(.init(
-            nome: "pesi della voce",
-            presente: fm.fileExists(atPath: cache.appendingPathComponent("olivera/kokoro/kokoro-v1.0.onnx").path),
-            comeSiRimette: "./scripts/setup_mac.sh"))
-        elenco.append(.init(
-            nome: "indice del corpus",
-            presente: fm.fileExists(atPath: radice.appendingPathComponent("data/index/vectors.npy").path),
-            comeSiRimette: "./.venv/bin/python -m olivera.rag.index"))
-
-        requisiti = elenco
-    }
+    func controllaRequisiti() { requisiti = piattaforma.requisiti(radice: radice) }
 
     var tuttoPronto: Bool { requisiti.allSatisfy(\.presente) }
 
     func preparaLaMacchina() {
         fase = .avvio("preparo (scarica qualche centinaio di MB)...")
-        Task.detached { [radice] in
-            _ = Motore.esegui(radice: radice, comando: "./scripts/setup_mac.sh")
+        let comando = piattaforma.preparazione()
+        Task.detached { [radice, piattaforma] in
+            _ = Guscio.esegui(piattaforma: piattaforma, radice: radice, comando: comando)
             await MainActor.run {
                 self.controllaRequisiti()
                 self.fase = .spenta
             }
         }
-    }
-
-    // MARK: - utilita'
-
-    nonisolated static func esegui(radice: URL, comando: String) -> String {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        p.arguments = ["-lc", comando]
-        p.currentDirectoryURL = radice
-        let tubo = Pipe()
-        p.standardOutput = tubo
-        p.standardError = Pipe()
-        do { try p.run() } catch { return "" }
-        let dati = tubo.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        return String(data: dati, encoding: .utf8) ?? ""
-    }
-
-    nonisolated static func indirizzoLocale() -> String {
-        var indirizzo = "127.0.0.1"
-        var puntatore: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&puntatore) == 0, let primo = puntatore else { return indirizzo }
-        defer { freeifaddrs(puntatore) }
-        var corrente = primo
-        while true {
-            let interfaccia = corrente.pointee
-            if
-                interfaccia.ifa_addr?.pointee.sa_family == UInt8(AF_INET),
-                let nome = interfaccia.ifa_name,
-                String(cString: nome).hasPrefix("en")
-            {
-                var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                if getnameinfo(interfaccia.ifa_addr, socklen_t(interfaccia.ifa_addr.pointee.sa_len),
-                               &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
-                    let trovato = String(cString: host)
-                    if !trovato.hasPrefix("127.") { indirizzo = trovato; break }
-                }
-            }
-            guard let prossimo = interfaccia.ifa_next else { break }
-            corrente = prossimo
-        }
-        return indirizzo
     }
 }

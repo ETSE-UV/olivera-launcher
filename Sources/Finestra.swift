@@ -147,8 +147,12 @@ private struct Interruttore: View {
             .disabled(!motore.tuttoPronto && !accesa)
 
             if case .avvio = motore.fase {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
+                // Una barra vera, non una rotella: le fasi che il servizio
+                // annuncia sono note e in ordine, quindi si puo' dire QUANTO
+                // manca invece di dire soltanto che sta succedendo qualcosa.
+                VStack(alignment: .leading, spacing: 4) {
+                    ProgressView(value: motore.avanzamento)
+                        .progressViewStyle(.linear)
                     Text("il primo avvio prende un minuto: carica i modelli e li scalda, "
                          + "cosi' il primo visitatore non paga l'attesa")
                         .font(.caption)

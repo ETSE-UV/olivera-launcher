@@ -10,7 +10,8 @@ Windows PC; the voice guide runs on a Mac on the same network. This app exists
 so that starting the Mac side is a double click instead of three terminals.
 
 The guide server itself is a separate project. **This repository is only the
-launcher.**
+launcher**, and it is deliberately structured so that a Windows version is a
+port of one file rather than a rewrite.
 
 ## What it does
 
@@ -21,12 +22,14 @@ launcher.**
   server by UDP broadcast and takes *whoever replies first*. With two servers up
   — the Mac and the PC, which is the normal situation while comparing them — the
   choice is not deterministic, and you end up measuring one machine while
-  believing you are measuring the other. The app makes that visible; the server
-  side has a `--no-discovery` flag for the one that should stay quiet.
-- **Says how much memory is left.** On a 16 GB machine the chain needs about
-  5 GB. When memory runs out the service is paged out entirely — `rss` at zero,
-  CPU at zero — and the system does not bring it back. From the outside that is
-  indistinguishable from a hang. Knowing it early saves an afternoon.
+  believing you are measuring the other.
+- **Says how much memory is left.** The chain needs about 5 GB. When memory runs
+  out the service is paged out entirely — `rss` at zero, CPU at zero — and the
+  system does not bring it back. From the outside that is indistinguishable from
+  a hang.
+- **Shows a real progress bar**, because the phases the server announces are
+  known and ordered, so the app can say *how much* is left rather than only that
+  something is happening.
 - **Runs a quick self-test**: one voice command and one question, without the
   headset. The command must come back as an *action*; if it comes back as words,
   the server is running older code than the checkout.
@@ -34,7 +37,7 @@ launcher.**
 ## Build
 
 Requires macOS 13+ and the Swift toolchain that ships with Xcode. No Xcode
-project, no package manager: three source files and an `Info.plist`.
+project, no package manager: five source files and an `Info.plist`.
 
 ```bash
 ./build.sh          # produces build/Olivera.app
@@ -44,74 +47,82 @@ project, no package manager: three source files and an `Info.plist`.
 The app is signed ad-hoc, not notarised. On first launch macOS will ask for
 confirmation: right-click the app, *Open*, then *Open* again.
 
-## How it talks to the server
+## The contract with the server
 
-The app deliberately knows nothing about the voice pipeline. The contract is
-three things, and that is the whole of it:
+The app knows two things about the voice pipeline, and nothing else.
 
-| | |
-|---|---|
-| `./scripts/serve_mac.sh` | started as a child process, with `OLIVERA_*` variables in the environment |
-| its standard output | parsed for four phrases to drive the progress label |
-| `GET /health` | polled every 2 s for the loaded models |
-
-Plus two helper commands from the server project, used by the network probe and
-the self-test buttons:
+**1. It starts it with one command, the same on every operating system:**
 
 ```
-python -m olivera.tools.chi_risponde --json
-python scripts/prova_rapida.py --url ws://127.0.0.1:8765/ws --json
+<python> -m olivera.launch --port 8765 [--no-discovery]
 ```
 
-The day the pipeline changes, the script changes and the app keeps working
-without knowing what changed. This is also why the probes are Python processes
-of the server project instead of being rewritten in Swift: there is one source
-of truth about how to talk to the server.
+**2. It reads the phase from lines the launcher prints on stdout:**
 
-Environment variables passed to the script:
+```
+@@olivera {"fase": "llm", "testo": "carico qwen3:4b-instruct-2507-q4_K_M con llama.cpp"}
+@@olivera {"fase": "pronta", "testo": "in ascolto su 0.0.0.0:8765", "porta": 8765}
+```
 
-| variable | values |
-|---|---|
-| `OLIVERA_TTS` | `kokoro`, `say`, `qwen-mps` |
-| `OLIVERA_QUANT` | `q4_K_M`, `q8_0` |
-| `OLIVERA_PORT` | default `8765` |
-| `OLIVERA_DISCOVERY` | `1` / `0` |
+Five phases, in order: `avvio`, `llm`, `modelli`, `scaldo`, `pronta` — plus
+`errore`. The prefix cannot occur by accident in a llama.cpp or uvicorn log, and
+the object can grow new fields without breaking readers. An earlier version
+searched for sentences *inside* the log text; that works until somebody rewrites
+a message, and then the progress bar stops with nobody connecting the two facts.
 
-The app builds a **clean** environment (only `HOME`, `USER`, `SHELL`, `TMPDIR`,
-`LANG`, `PATH`) rather than inheriting its parent's. Inheriting looks prudent
-and is not: depending on whether the app is opened from Finder, from the Dock or
-from a terminal, the child gets different variables and the service behaves
-differently for no visible reason.
+Health and models come from `GET /health`. Two more commands back the network
+probe and the self-test buttons:
+
+```
+<python> -m olivera.tools.chi_risponde --json
+<python> scripts/prova_rapida.py --url ws://127.0.0.1:8765/ws --json
+```
+
+The differences between machines — llama.cpp or Ollama, HuggingFace's symlink
+problem on Windows, the VRAM keep-alive — live inside `olivera/launch.py` on the
+server side, where they can be read next to each other. They are not the app's
+business.
 
 ## Porting to Windows
 
-The three files split cleanly, and only one of them is platform-specific.
+The platform coupling is isolated in **`Sources/Piattaforma.swift`**: a protocol
+with six members, and under each one a comment saying what the Windows
+equivalent is. Nothing else in the app names an operating system.
 
-- `OliveraApp.swift` and `Finestra.swift` are the app shell and the view. On
-  Windows the natural equivalents are WinUI 3 / WPF, or Avalonia if you want one
-  codebase for both.
-- `Motore.swift` is where all the platform coupling lives, and it is small:
-  - launching `/bin/zsh -lc` → `powershell.exe -Command` (and a `serve_win.ps1`
-    beside `serve_mac.sh`; the server project already ships `start_server.ps1`)
-  - `getifaddrs` for the LAN address → `GetAdaptersAddresses`
-  - `vm_stat` + `hw.memsize` for memory → `GlobalMemoryStatusEx`
-  - process termination: `Process.terminate()` sends `SIGTERM` and the shell
-    script traps it. On Windows there is no equivalent, so the stop path has to
-    go through a job object or a PID file.
-- Everything else — the health polling, the log parsing, the discovery probe —
-  is plain HTTP and JSON and moves over unchanged.
+| protocol member | macOS | Windows |
+|---|---|---|
+| `comando(_:)` | `/bin/zsh -lc` | `powershell.exe -NoProfile -Command` |
+| `python` | `./.venv/bin/python` | `.venv\Scripts\python.exe` |
+| `indirizzoLocale()` | `getifaddrs` | `GetAdaptersAddresses` |
+| `memoriaLibera(radice:)` | `vm_stat` + `hw.memsize` | `GlobalMemoryStatusEx` |
+| `requisiti(radice:)` | `command -v`, `~/.cache` | `Get-Command`, `%LOCALAPPDATA%` |
+| `cartellaPesi` | `~/.cache/olivera` | `%LOCALAPPDATA%\olivera` |
 
-The one thing worth keeping whatever the platform: **treat a death during
-startup as a failure even when the exit code is zero.** The shell script has an
-exit trap that resets the return code, so a script that dies on its second line
-can present itself as a clean exit. That cost an hour once.
+The command that starts the service is built once in a protocol extension and is
+identical on both systems, so a port does not get to invent its own.
+
+Two choices worth keeping whatever the UI framework:
+
+- **Treat a death during startup as a failure even when the exit code is zero.**
+  The first version of this app went through a shell script whose exit trap reset
+  the return code, so a script that died on its second line presented itself as a
+  clean exit — and the app simply went back to "off", as if the button had not
+  been pressed. That cost an hour.
+- **Give up loudly.** The launcher watches its own progress: after 45 s on the
+  same phase it says which one, and after 150 s it stops waiting, closes its
+  children and exits non-zero. An unbounded wait is the most expensive failure to
+  explain, because the person watching cannot tell a slow start from a dead one.
+
+If the Windows UI is C# rather than Swift — WinUI 3, WPF, Avalonia — the Swift
+protocol still earns its keep as the specification: it is the complete list of
+what a host has to provide, and it is six items long.
 
 ## Notes for whoever reads the code
 
 Comments are in Italian, because the project they belong to is. They are also
-denser than usual in the places where something went wrong: each of the long
-comments in `Motore.swift` marks a specific failure that was diagnosed once, and
-is there so it does not have to be diagnosed twice.
+denser than usual in the places where something went wrong: each long comment
+marks a specific failure that was diagnosed once, and is there so it does not
+have to be diagnosed twice.
 
 ## Licence
 
