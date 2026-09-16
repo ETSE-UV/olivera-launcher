@@ -79,8 +79,23 @@ ok "tutte e dieci le rendition hanno la taglia in pixel attesa (sips -g pixelWid
 # (due copie della stessa logica che potrebbero divergere in silenzio).
 ICONSET_VERO="build/AppIcon.iconset"
 [ -d "$ICONSET_VERO" ] || guasto "$ICONSET_VERO non esiste: build.sh non l'ha lasciato (versione vecchia di build.sh?)"
-PYTHON_VENV="../.venv/bin/python3"
-[ -x "$PYTHON_VENV" ] || guasto "manca $PYTHON_VENV (Pillow): il confronto pixel per pixel lo richiede"
+# Il confronto pixel per pixel vuole Pillow. Nel progetto sta nel .venv; nel
+# repository pubblico del solo lanciatore (ETSE-UV/olivera-launcher) il .venv
+# non c'e', e la prova falliva sul primo controllo invece di arrivare a quelli
+# che puo' fare. Si cerca un Python con Pillow fra quelli disponibili; se non
+# c'e', si dice e si salta SOLO questo controllo, non tutta la prova.
+PYTHON_VENV=""
+for candidato in ../.venv/bin/python3 python3 /usr/bin/python3; do
+  if command -v "$candidato" >/dev/null 2>&1 && "$candidato" -c "import PIL" >/dev/null 2>&1; then
+    PYTHON_VENV="$candidato"; break
+  fi
+done
+if [ -z "$PYTHON_VENV" ]; then
+  echo "-   nessun Python con Pillow: salto il confronto pixel per pixel (pip install pillow per averlo)"
+  echo
+  echo "tutto verde ($verdi controlli, uno saltato)"
+  exit 0
+fi
 
 # Lo script Python va scritto su file a se' stante: un heredoc sulla stessa
 # riga di piu' argomenti tra virgolette (qui: interprete, due percorsi, la
