@@ -1,0 +1,75 @@
+/* Generato da app/Localizzazioni/genera_strings.py - lotto LINGUA. */
+/* Non modificare a mano: rigenera con lo script se serve cambiare una voce. */
+
+/* O2: suffisso annidato in un'interpolazione, non lo localizza SwiftUI da solo - NSLocalizedString esplicito */
+"  (questo Mac)" = "  (questo Mac)";
+
+/* Fase.descrizione */
+"spenta" = "spenta";
+
+/* Fase.descrizione */
+"pronta" = "pronta";
+
+/* nome proprio, non si traduce */
+"Kokoro" = "Kokoro";
+
+"Di sistema" = "Di sistema";
+
+"Clonata" = "Clonata";
+
+"neurale, 0,18 di fattore di tempo reale" = "neurale, 0,18 di fattore di tempo reale";
+
+"0,3 s piu' rapida, ma si sente che e' una macchina" = "0,3 s piu' rapida, ma si sente che e' una macchina";
+
+"fuori dal tempo reale su questo Mac: solo per ascoltarla" = "fuori dal tempo reale su questo Mac: solo per ascoltarla";
+
+"4 bit" = "4 bit";
+
+"8 bit" = "8 bit";
+
+"prima frase in 0,9 s, 3,9 GB" = "prima frase in 0,9 s, 3,9 GB";
+
+"risposte un filo migliori, +0,6 s e +1,2 GB" = "risposte un filo migliori, +0,6 s e +1,2 GB";
+
+"avvio..." = "avvio...";
+
+/* %@ e' il nome dell'agente, non si traduce */
+"chiedo a %@ di accenderla..." = "chiedo a %@ di accenderla...";
+
+/* prefisso tecnico di log, come [olivera] in Python: resta uguale nelle tre lingue */
+"[agente]" = "[agente]";
+
+"nessun dettaglio" = "nessun dettaglio";
+
+"non e' partita: %@" = "non e' partita: %@";
+
+"si e' fermata (codice %lld)" = "si e' fermata (codice %lld)";
+
+/* error.localizedDescription, gia' nella lingua di sistema */
+"non parte: %@" = "non parte: %@";
+
+"il server e' acceso da qualcos'altro: spegnilo da dove l'hai avviato" = "il server e' acceso da qualcos'altro: spegnilo da dove l'hai avviato";
+
+"non risponde piu': l'agente potrebbe averla riavviata, riprovo..." = "non risponde piu': l'agente potrebbe averla riavviata, riprovo...";
+
+"non risponde alla salute" = "non risponde alla salute";
+
+"la prova non ha risposto" = "la prova non ha risposto";
+
+"non risponde: %@" = "non risponde: %@";
+
+"ordine eseguito (%@ %@) in %lld ms" = "ordine eseguito (%@ %@) in %lld ms";
+
+"ORDINE NON ESEGUITO: ha risposto a parole. Il server gira su codice vecchio." = "ORDINE NON ESEGUITO: ha risposto a parole. Il server gira su codice vecchio.";
+
+"domanda: primo suono in %@ s" = "domanda: primo suono in %@ s";
+
+"preparo (scarica qualche centinaio di MB)..." = "preparo (scarica qualche centinaio di MB)...";
+
+"ambiente Python" = "ambiente Python";
+
+"pesi dell'ascolto" = "pesi dell'ascolto";
+
+"pesi della voce" = "pesi della voce";
+
+"indice del corpus" = "indice del corpus";

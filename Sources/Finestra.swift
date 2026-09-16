@@ -16,7 +16,7 @@ struct Finestra: View {
                 if motore.memoriaStretta { Memoria() }
                 if !motore.tuttoPronto { Mancanze() }
                 Interruttore()
-                if motore.fase == .pronta { Indirizzo(); Prova() }
+                if motore.fase == .pronta { Indirizzo(); Prova(); Documenti() }
                 Preferenze()
                 Rete()
                 Registro()
@@ -153,8 +153,11 @@ private struct Interruttore: View {
                 VStack(alignment: .leading, spacing: 4) {
                     ProgressView(value: motore.avanzamento)
                         .progressViewStyle(.linear)
-                    Text("il primo avvio prende un minuto: carica i modelli e li scalda, "
-                         + "cosi' il primo visitatore non paga l'attesa")
+                    // O2: era una concatenazione con "+", e SwiftUI la vede come
+                    // String verbatim (non localizzata) invece che come chiave -
+                    // misurato nella critica (M1, caso 3). Un letterale solo torna
+                    // a essere LocalizedStringKey.
+                    Text("il primo avvio prende un minuto: carica i modelli e li scalda, cosi' il primo visitatore non paga l'attesa")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -168,8 +171,18 @@ private struct Interruttore: View {
                     Gettone(icona: "brain", testo: s.llm)
                     Gettone(icona: "waveform", testo: s.tts.replacingOccurrences(of: "TTS", with: ""))
                 }
-                Text("\(s.pezzi) passaggi nell'indice")
-                    .font(.caption2).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text("\(s.pezzi) passaggi nell'indice")
+                    switch motore.custode {
+                    case .agente(let nome):
+                        Text("· accesa da \(nome), parte da sola al login")
+                    case .sconosciuto:
+                        Text("· accesa da qualcos'altro, non da questa app")
+                    default:
+                        EmptyView()
+                    }
+                }
+                .font(.caption2).foregroundStyle(.secondary)
             }
         }
     }
@@ -237,7 +250,11 @@ private struct Indirizzo: View {
 }
 
 private struct Riga: View {
-    let chiave: String
+    // O2: era String, quindi Text(chiave) mostrava il letterale verbatim invece
+    // di cercarlo in Localizable.strings (critica, M1 caso 6 / M2 riga "Prova nel
+    // browser"). "WebSocket" resta identico nelle tre lingue perche' nessuna
+    // tabella ha una voce diversa per quella chiave, non perche' il tipo lo escluda.
+    let chiave: LocalizedStringKey
     let valore: String
     var body: some View {
         HStack(spacing: 6) {
@@ -269,9 +286,14 @@ private struct Prova: View {
                 Spacer()
             }
             if let esito = motore.esitoProva {
-                Text(esito)
+                // O3: esitoProva era una String sola, e Finestra.swift decideva il
+                // rosso guardando due frasi italiane dentro il testo - con l'esito
+                // tradotto quel confronto non avrebbe piu' trovato niente. Ora e'
+                // Motore.swift a dire se e' un guasto (leggiProva), qui si legge
+                // solo il campo, mai il testo.
+                Text(esito.testo)
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(esito.contains("NON ESEGUITO") || esito.contains("non risponde") ? .red : .primary)
+                    .foregroundStyle(esito.guasto ? .red : .primary)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -286,6 +308,7 @@ private struct Preferenze: View {
     @State private var aperto = false
 
     private var accesa: Bool { motore.fase != .spenta }
+    private var custodeEAgente: Bool { if case .agente = motore.custode { return true }; return false }
 
     var body: some View {
         DisclosureGroup(isExpanded: $aperto) {
@@ -311,13 +334,33 @@ private struct Preferenze: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if accesa {
-                    Text("I cambiamenti valgono al prossimo avvio.")
+                    // D10 (critica C4): sotto un agente launchd i cambiamenti
+                    // non valgono al prossimo avvio di QUESTA app - valgono
+                    // quando l'agente la fa ripartire lui. Ternario di due
+                    // letterali: SwiftUI lo risolve da solo (M1 caso 2), non
+                    // serve NSLocalizedString.
+                    Text(custodeEAgente
+                         ? "I cambiamenti valgono quando l'agente riparte."
+                         : "I cambiamenti valgono al prossimo avvio.")
                         .font(.caption2).foregroundStyle(.orange)
                 }
             }
             .padding(.top, 8)
         } label: {
-            Label("Come deve parlare", systemImage: "slider.horizontal.3").font(.callout)
+            // Il tester di DOCUMENTI ha trovato i titoli dei DisclosureGroup
+            // illeggibili dall'albero di accessibilita' - misurato di nuovo
+            // nella critica di LINGUA (M2/M in scratchpad/critica-lingua):
+            // ne' Label(...) ne' .accessibilityLabel arrivano a un AXTitle/
+            // AXDescription su AXDisclosureTriangle, con qualunque variante
+            // provata. Cio' che ARRIVA come AXStaticText leggibile e tradotto
+            // e' un HStack con dentro un Text (provato in ProvaDG.app): si usa
+            // quello al posto di Label, senza pretendere un accessibilityLabel
+            // che non fa niente.
+            HStack(spacing: 6) {
+                Image(systemName: "slider.horizontal.3")
+                Text("Come deve parlare")
+            }
+            .font(.callout)
         }
     }
 }
@@ -348,7 +391,11 @@ private struct Rete: View {
                         Image(systemName: s.questoMac ? "desktopcomputer" : "pc")
                             .font(.caption).foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text("\(s.ip):\(s.porta)\(s.questoMac ? "  (questo Mac)" : "")")
+                            // O2: il suffisso e' un letterale ANNIDATO dentro
+                            // un'interpolazione - SwiftUI non lo vede come chiave
+                            // (misurato nella critica, M1 caso 7): si risolve prima,
+                            // con NSLocalizedString esplicito, e POI si interpola.
+                            Text("\(s.ip):\(s.porta)\(s.questoMac ? NSLocalizedString("  (questo Mac)", comment: "suffisso sull'indirizzo di questo Mac nell'elenco di chi risponde sulla rete") : "")")
                                 .font(.system(.caption, design: .monospaced))
                             Text(s.descrizione).font(.caption2).foregroundStyle(.secondary)
                         }
@@ -363,7 +410,14 @@ private struct Rete: View {
             }
             .padding(.top, 8)
         } label: {
-            Label("Chi c'e' sulla rete", systemImage: "network").font(.callout)
+            // Stessa correzione di Preferenze: HStack+Text al posto di Label,
+            // che e' l'unica forma misurata leggibile da System Events su
+            // AXDisclosureTriangle (vedi il commento in Preferenze sopra).
+            HStack(spacing: 6) {
+                Image(systemName: "network")
+                Text("Chi c'e' sulla rete")
+            }
+            .font(.callout)
         }
     }
 }
@@ -401,7 +455,12 @@ private struct Registro: View {
             }
             .padding(.top, 8)
         } label: {
-            Label("Registro", systemImage: "text.alignleft").font(.callout)
+            // Stessa correzione delle altre due schede.
+            HStack(spacing: 6) {
+                Image(systemName: "text.alignleft")
+                Text("Registro")
+            }
+            .font(.callout)
         }
     }
 }
@@ -409,7 +468,10 @@ private struct Registro: View {
 // MARK: - contenitore
 
 struct Scheda<Contenuto: View>: View {
-    let titolo: String
+    // O2: era String, quindi Label(titolo, ...) mostrava il letterale verbatim
+    // invece di cercarlo in Localizable.strings (critica, M1 caso 6 / M2 riga
+    // "Prova sin visor" vs "Prova senza visore" non tradotto).
+    let titolo: LocalizedStringKey
     let icona: String
     @ViewBuilder var contenuto: Contenuto
 

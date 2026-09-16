@@ -12,6 +12,27 @@ import SwiftUI
 struct OliveraApp: App {
     @StateObject private var motore = Motore(radice: OliveraApp.radiceDelProgetto())
 
+    /// `--stampa-lingua`: stampa su stdout le stringhe chiave nella lingua
+    /// corrente ed esce, senza aprire la finestra. Diagnostica a costo zero
+    /// (critica del lotto LINGUA, C2 e M3): NON sostituisce la prova vera, che
+    /// legge l'albero di accessibilita' della finestra reale con -AppleLanguages,
+    /// ma la affianca - se questa stampa la lingua sbagliata il problema e' nelle
+    /// tabelle, se la finestra mostra la lingua sbagliata ma questa e' giusta il
+    /// problema e' in una vista che non usa il meccanismo automatico (O2).
+    /// Sicuro da chiamare prima che `motore` esista davvero: con @StateObject
+    /// l'autoclosure si valuta al primo `body`, non qui - Motore(radice:) non
+    /// parte, ne' `controllaRequisiti()` ne' `adotta()` (misurato: M3).
+    init() {
+        guard CommandLine.arguments.contains("--stampa-lingua") else { return }
+        print("preferredLocalizations: \(Bundle.main.preferredLocalizations)")
+        print(Fase.spenta.descrizione)
+        print(Fase.pronta.descrizione)
+        for r in piattaformaCorrente().requisiti(radice: OliveraApp.radiceDelProgetto()) {
+            print(r.nome)
+        }
+        exit(0)
+    }
+
     var body: some Scene {
         Window("Olivera", id: "principale") {
             Finestra()

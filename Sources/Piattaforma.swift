@@ -61,6 +61,21 @@ protocol Piattaforma {
     ///
     /// Windows: `%LOCALAPPDATA%\olivera`.
     var cartellaPesi: URL { get }
+
+    /// Il servizio di sistema che tiene acceso il server senza che nessuno lo
+    /// avvii, se e' installato. L'app allora comanda QUELLO, invece di lanciare
+    /// un secondo server che trova la porta presa e muore.
+    ///
+    /// Windows: un'attivita' pianificata (`schtasks`) o un servizio; i comandi
+    /// diventano `schtasks /Run /TN olivera` e `schtasks /End /TN olivera`.
+    func agente() -> Agente?
+}
+
+/// Un servizio di sistema che sa accendere e spegnere il server.
+struct Agente {
+    var nome: String
+    var accendi: String
+    var spegni: String
 }
 
 // MARK: - la riga di comando che accende tutto, uguale ovunque
@@ -102,29 +117,60 @@ struct Mac: Piattaforma {
     }
 
     func indirizzoLocale() -> String {
-        var indirizzo = "127.0.0.1"
+        // PRIMA quella della rotta di default, poi le altre. Un Mac attaccato
+        // via cavo alla LAN dell'universita' e via WiFi a un'altra rete ha due
+        // indirizzi, e la prima versione mostrava il primo che trovava in
+        // ordine di interfaccia: era quello della WiFi, e il visore stava
+        // sull'altra rete. La rotta di default e' la scelta migliore che si
+        // possa fare senza sapere dove sta il visore.
+        let interfacciaDefault = Guscio.esegui(
+            piattaforma: self, radice: URL(fileURLWithPath: "/"),
+            comando: "route -n get default 2>/dev/null | awk '/interface:/{print $2}'"
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var perNome: [(String, String)] = []
         var puntatore: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&puntatore) == 0, let primo = puntatore else { return indirizzo }
+        guard getifaddrs(&puntatore) == 0, let primo = puntatore else { return "127.0.0.1" }
         defer { freeifaddrs(puntatore) }
         var corrente = primo
         while true {
             let interfaccia = corrente.pointee
             if
                 interfaccia.ifa_addr?.pointee.sa_family == UInt8(AF_INET),
-                let nome = interfaccia.ifa_name,
-                String(cString: nome).hasPrefix("en")
+                let nome = interfaccia.ifa_name
             {
+                let nomeInterfaccia = String(cString: nome)
                 var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                if getnameinfo(interfaccia.ifa_addr, socklen_t(interfaccia.ifa_addr.pointee.sa_len),
+                if nomeInterfaccia.hasPrefix("en"),
+                   getnameinfo(interfaccia.ifa_addr, socklen_t(interfaccia.ifa_addr.pointee.sa_len),
                                &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
                     let trovato = String(cString: host)
-                    if !trovato.hasPrefix("127.") { indirizzo = trovato; break }
+                    if !trovato.hasPrefix("127.") { perNome.append((nomeInterfaccia, trovato)) }
                 }
             }
             guard let prossimo = interfaccia.ifa_next else { break }
             corrente = prossimo
         }
-        return indirizzo
+        if let principale = perNome.first(where: { $0.0 == interfacciaDefault }) {
+            return principale.1
+        }
+        return perNome.first?.1 ?? "127.0.0.1"
+    }
+
+    func agente() -> Agente? {
+        let plist = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/com.olivera.voice.plist")
+        guard FileManager.default.fileExists(atPath: plist.path) else { return nil }
+        let uid = getuid()
+        return Agente(
+            nome: "launchd (com.olivera.voice)",
+            // `bootstrap` e non `load`: e' il verbo moderno, e a differenza di
+            // `kickstart` non fa niente se l'agente e' gia' su. `bootout`
+            // lo toglie davvero: con KeepAlive attivo, un semplice `kill`
+            // lo vedrebbe risorgere tre secondi dopo.
+            accendi: "launchctl bootstrap gui/\(uid) '\(plist.path)' 2>&1 || launchctl kickstart gui/\(uid)/com.olivera.voice 2>&1",
+            spegni: "launchctl bootout gui/\(uid)/com.olivera.voice 2>&1"
+        )
     }
 
     func memoriaLibera(radice: URL) -> Double {
@@ -171,8 +217,12 @@ struct Mac: Piattaforma {
             fm.fileExists(atPath: radice.appendingPathComponent(percorso).path)
         }
 
+        // O3: i quattro nomi traducibili passano da NSLocalizedString. I tre nomi
+        // propri (llama.cpp, whisper.cpp, Ollama) e i sette `comeSiRimette`
+        // restano letterali: sono comandi di shell mostrati in monospaced
+        // (Finestra.swift, Mancanze), codice e non prosa, uguali in ogni lingua.
         return [
-            .init(nome: "ambiente Python", presente: r(".venv/bin/python"),
+            .init(nome: NSLocalizedString("ambiente Python", comment: ""), presente: r(".venv/bin/python"),
                   comeSiRimette: "python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt"),
             .init(nome: "llama.cpp", presente: nelPercorso("llama-server"),
                   comeSiRimette: "brew install llama.cpp"),
@@ -180,13 +230,13 @@ struct Mac: Piattaforma {
                   comeSiRimette: "brew install whisper-cpp"),
             .init(nome: "Ollama", presente: nelPercorso("ollama"),
                   comeSiRimette: "brew install ollama"),
-            .init(nome: "pesi dell'ascolto",
+            .init(nome: NSLocalizedString("pesi dell'ascolto", comment: ""),
                   presente: fm.fileExists(atPath: fm.homeDirectoryForCurrentUser
                       .appendingPathComponent(".cache/whisper-cpp/ggml-large-v3-turbo-q8_0.bin").path),
                   comeSiRimette: "./.venv/bin/python -m olivera.tools.prepara"),
-            .init(nome: "pesi della voce", presente: c("kokoro/kokoro-v1.0.onnx"),
+            .init(nome: NSLocalizedString("pesi della voce", comment: ""), presente: c("kokoro/kokoro-v1.0.onnx"),
                   comeSiRimette: "./.venv/bin/python -m olivera.tools.prepara"),
-            .init(nome: "indice del corpus", presente: r("data/index/vectors.npy"),
+            .init(nome: NSLocalizedString("indice del corpus", comment: ""), presente: r("data/index/vectors.npy"),
                   comeSiRimette: "./.venv/bin/python -m olivera.rag.index"),
         ]
     }

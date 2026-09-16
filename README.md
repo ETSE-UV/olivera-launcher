@@ -33,11 +33,24 @@ port of one file rather than a rewrite.
 - **Runs a quick self-test**: one voice command and one question, without the
   headset. The command must come back as an *action*; if it comes back as words,
   the server is running older code than the checkout.
+- **Shows what the guide is based on**: the list of public documents behind
+  the retrieval, with type and passage count, read from `GET /documenti`.
+  Only public sources are listed; reserved material is counted, never named.
+- **Speaks Italian, Spanish and English**, following the language macOS
+  assigns to the app (System Settings → General → Language & Region). The
+  same choice is handed to the server as `OLIVERA_LANG`, so the status lines
+  it prints arrive in the same language.
+- **Has an icon**: an olive tree, full-bleed, because macOS 26+ applies the
+  rounded mask itself. `build.sh` builds the `.icns` from `Icona.svg` and
+  works around an `iconutil` defect on macOS 27 that truncates the 16 and 32
+  px renditions (`prova_icona.sh` compares the reopened icon pixel by pixel).
 
 ## Build
 
 Requires macOS 13+ and the Swift toolchain that ships with Xcode. No Xcode
-project, no package manager: five source files and an `Info.plist`.
+project, no package manager: six source files, three `.lproj` folders and an
+`Info.plist`. Translations live in `Localizzazioni/genera_strings.py` (one
+table, three languages, generated `.strings` files kept in sync).
 
 ```bash
 ./build.sh          # produces build/Olivera.app

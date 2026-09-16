@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Ulivo stilizzato: l'Olivera e' "l'olivo" in valenciano, ed e' il nome
+       del teatro. Poche forme (ellissi per la chioma, un path per il tronco)
+       perche' a 16 px sparisce ogni dettaglio fine: contano solo la sagoma
+       e i due toni di verde che danno volume senza sfumature. -->
+
+  <!-- Fondo: quadrato A TUTTO CAMPO, senza angoli arrotondati e senza
+       margine. Da macOS 26 il sistema applica DA SOLO la maschera
+       arrotondata, il rientro e il vetro a un PNG quadrato pieno: una
+       squircle disegnata qui dentro verrebbe arrotondata due volte e
+       apparirebbe piccola con un bordo doppio. Misurato (non piu' dedotto)
+       su questa macchina, macOS 27.0: app/prova_icona.sh disegna l'icona
+       col metodo del sistema (NSWorkspace.shared.icon(forFile:), lo stesso
+       che userebbe il Dock) in app/build/anteprima_icona_sistema.png, e
+       la squircle, il rientro e il vetro ci sono davvero, non solo nel PNG
+       piatto. L'albero sta nell'80% centrale (dentro un quadrato ~820 px)
+       perche' la maschera del sistema ritaglia i bordi; su macOS 13-15 lo
+       stesso PNG resta un quadrato pieno, accettabile per la macchina di
+       Eugenio. -->
+  <rect x="0" y="0" width="1024" height="1024" fill="#E8D9B5"/>
+
+  <!-- Chioma: tonda ma non simmetrica, spostata verso sinistra rispetto al
+       tronco. Base scura sotto, ellissi chiare sopra per il volume, senza
+       gradiente (si perderebbe comunque a 16 px). Disegnata PRIMA del
+       tronco (vedi sotto il perche' dell'ordine). -->
+  <ellipse cx="502.5" cy="475.5" rx="345" ry="300" fill="#5E7352"/>
+  <ellipse cx="367.5" cy="370.5" rx="225" ry="202.5" fill="#7A8F6B"/>
+  <ellipse cx="592.5" cy="325.5" rx="195" ry="180" fill="#7A8F6B"/>
+  <ellipse cx="457.5" cy="535.5" rx="255" ry="225" fill="#7A8F6B"/>
+  <ellipse cx="667.5" cy="475.5" rx="165" ry="150" fill="#5E7352"/>
+
+  <!-- Tronco: corto e nodoso, si allarga alla base (svasata) e si stringe
+       poco sotto l'attacco (la strozzatura). Misurato con uno script Pillow
+       sul PNG 1024 rasterizzato (bbox dei pixel non-fondo, colore puro):
+       la versione precedente aveva l'albero al 46%x48% della tela, centro
+       58 px sopra il centro, e il tronco era disegnato PRIMA della chioma,
+       che gli scendeva sopra fino a y=630 e ne lasciava visibile solo un
+       moncone di 75 px in fondo (y 625-699), senza mai mostrare la
+       strozzatura. Qui il tronco e' ingrandito e ricentrato insieme alla
+       chioma (scala 1.5x attorno al vecchio centro (495,455), poi
+       traslato di +58 in y): il riquadro dell'intero albero e' ora
+       705x735 px (69%x72% della tela), centro (494,512) - quasi
+       esattamente il centro tela (512,512), 18 px a sinistra per via
+       della chioma spostata, come da disegno. Ed e' disegnato DOPO la
+       chioma (non prima): l'attacco (y 573) entra nel verde, che in
+       quella fascia scende fino a y~625, e sotto restano visibili 307 px
+       di tronco color puro (y 573-879), strozzatura e base svasata
+       comprese, ben oltre il minimo di 150 px chiesto dal compito. Sul
+       raster a 16x16 (sips) il moncone in basso resta un blocco marrone
+       largo ~2 px, distinto dal verde sopra e dal fondo attorno (misurato
+       leggendo i valori RGB pixel per pixel: es. riga 12, colonne 7-8,
+       ~(115,88,66) contro il fondo (232,217,181)). -->
+  <path d="M 460.5 880.5
+           C 445.5 790.5, 454.5 715.5, 499.5 670.5
+           C 469.5 648, 457.5 610.5, 472.5 573
+           L 568.5 573
+           C 580.5 610.5, 571.5 648, 544.5 670.5
+           C 586.5 715.5, 592.5 790.5, 580.5 880.5
+           Z"
+        fill="#6B4F3A"/>
+</svg>

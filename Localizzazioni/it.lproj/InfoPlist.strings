@@ -1,0 +1,7 @@
+/* D9 del lotto LINGUA: stesso meccanismo di Localizable.strings ma per le
+   stringhe che macOS legge direttamente da Info.plist (qui: il pannello di
+   permesso di rete locale). it.lproj ripete il testo che sta gia' in
+   Info.plist come valore di default - CFBundleDevelopmentRegion e' "it",
+   quindi senza questo file l'italiano arriverebbe comunque dal plist base;
+   il file c'e' per coerenza con gli altri due e per la prova di parita'. */
+"NSLocalNetworkUsageDescription" = "Per farsi trovare dal visore sulla rete di casa.";

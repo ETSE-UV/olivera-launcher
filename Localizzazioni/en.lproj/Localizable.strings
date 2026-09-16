@@ -1,0 +1,177 @@
+/* Generato da app/Localizzazioni/genera_strings.py - lotto LINGUA. */
+/* Non modificare a mano: rigenera con lo script se serve cambiare una voce. */
+
+/* Memoria.swift: soglia critica */
+"Il Mac sta finendo la memoria (libera il %lld%%)" = "The Mac is running out of memory (free %lld%%)";
+
+/* Memoria.swift: soglia stretta */
+"Memoria stretta: libera il %lld%%" = "Memory is tight: free %lld%%";
+
+"Cosi' la guida parte e poi si ferma a meta', e sembra rotta. Chiudi Chrome, metti in pausa Google Drive e chiudi le sessioni che non ti servono, poi riprova." = "This way the guide starts and then stalls halfway, and looks broken. Close Chrome, pause Google Drive and close the sessions you don't need, then try again.";
+
+"I tempi che misuri adesso non sono quelli veri: la macchina sta scambiando memoria col disco." = "The times you measure now aren't the real ones: the machine is swapping memory to disk.";
+
+/* titolo Scheda */
+"Prima di accendere manca qualcosa" = "Something is missing before you can turn it on";
+
+"Prepara la macchina" = "Prepare the machine";
+
+"Ricontrolla" = "Check again";
+
+"Spegni la guida" = "Turn off the guide";
+
+"Accendi la guida" = "Turn on the guide";
+
+/* O2: era una concatenazione con '+', ora un letterale solo */
+"il primo avvio prende un minuto: carica i modelli e li scalda, cosi' il primo visitatore non paga l'attesa" = "the first startup takes a minute: it loads the models and warms them up, so the first visitor doesn't pay the wait";
+
+"%lld passaggi nell'indice" = "%lld chunks in the index";
+
+/* %@ e' il nome dell'agente (es. "launchd (com.olivera.voice)"), non si traduce */
+"· accesa da %@, parte da sola al login" = "· turned on by %@, starts on its own at login";
+
+"· accesa da qualcos'altro, non da questa app" = "· turned on by something else, not this app";
+
+/* titolo Scheda; "Unity" e "Play" non si traducono */
+"Su Unity puoi premere Play" = "In Unity you can press Play";
+
+/* "OliveraGuide" non si traduce */
+"Con il campo host vuoto il visore trova il Mac da solo. Se preferisci essere sicuro, scrivi questo indirizzo in OliveraGuide:" = "With the host field empty the headset finds the Mac on its own. If you'd rather be sure, write this address in OliveraGuide:";
+
+"Il discovery e' spento su questo Mac: l'indirizzo va scritto a mano nel campo host di OliveraGuide." = "Discovery is off on this Mac: the address has to be typed by hand into OliveraGuide's host field.";
+
+"copiato" = "copied";
+
+"copia" = "copy";
+
+/* nome di protocollo, non si traduce */
+"WebSocket" = "WebSocket";
+
+"Prova nel browser" = "Try in the browser";
+
+"La prima volta macOS chiede se lasciar passare le connessioni in entrata: bisogna dire di si', se no il visore non arriva." = "The first time, macOS asks whether to let incoming connections through: you have to say yes, otherwise the headset can't reach it.";
+
+/* titolo Scheda */
+"Prova senza visore" = "Test without headset";
+
+"Manda un ordine e una domanda. L'ordine deve tornare come azione: se torna a parole, il server sta girando su codice vecchio." = "Sends a command and a question. The command must come back as an action: if it comes back as words, the server is running old code.";
+
+"provo..." = "testing...";
+
+"Prova adesso" = "Test now";
+
+/* etichetta Picker */
+"Voce" = "Voice";
+
+/* etichetta Picker */
+"Modello" = "Model";
+
+"Fatti trovare dal visore in automatico" = "Let the headset find you automatically";
+
+"Spegnilo quando anche il PC ha il suo server acceso: se rispondono in due, Unity ne prende uno a caso." = "Turn it off when the PC also has its server on: if two answer, Unity picks one at random.";
+
+"I cambiamenti valgono al prossimo avvio." = "Changes take effect on the next start.";
+
+/* D10, ternario in Preferenze secondo se il custode e' l'agente launchd */
+"I cambiamenti valgono quando l'agente riparte." = "Changes take effect when the agent restarts.";
+
+/* titolo DisclosureGroup Preferenze */
+"Come deve parlare" = "How it should talk";
+
+"Manda lo stesso richiamo che manda il visore e ascolta chi risponde. Se rispondono in due, la scelta di Unity non e' prevedibile." = "Sends the same call the headset sends and listens for who answers. If two answer, Unity's choice isn't predictable.";
+
+"ascolto..." = "listening...";
+
+"Chi risponde sulla rete" = "Who answers on the network";
+
+/* O2: suffisso annidato in un'interpolazione, non lo localizza SwiftUI da solo - NSLocalizedString esplicito */
+"  (questo Mac)" = "  (this Mac)";
+
+"Rispondono in %lld: spegni il discovery su quello che non deve prendersi il visore." = "%lld are answering: turn off discovery on the one that shouldn't take the headset.";
+
+/* titolo DisclosureGroup Rete */
+"Chi c'e' sulla rete" = "Who's on the network";
+
+/* titolo DisclosureGroup Registro */
+"Registro" = "Log";
+
+/* titolo DisclosureGroup Documenti */
+"Su cosa si basa" = "What it's based on";
+
+"leggo l'elenco..." = "reading the list...";
+
+"Non disponibile: il server sta girando su codice vecchio." = "Not available: the server is running old code.";
+
+"Non disponibile: il server non ha risposto (codice %lld)." = "Not available: the server did not respond (code %lld).";
+
+"%lld documenti, %lld passaggi" = "%lld documents, %lld chunks";
+
+/* Fase.descrizione */
+"spenta" = "off";
+
+/* Fase.descrizione */
+"pronta" = "ready";
+
+/* nome proprio, non si traduce */
+"Kokoro" = "Kokoro";
+
+"Di sistema" = "System";
+
+"Clonata" = "Cloned";
+
+"neurale, 0,18 di fattore di tempo reale" = "neural, 0.18 real-time factor";
+
+"0,3 s piu' rapida, ma si sente che e' una macchina" = "0.3 s faster, but it's obviously a machine";
+
+"fuori dal tempo reale su questo Mac: solo per ascoltarla" = "not real-time on this Mac: for listening to it only";
+
+"4 bit" = "4-bit";
+
+"8 bit" = "8-bit";
+
+"prima frase in 0,9 s, 3,9 GB" = "first sentence in 0.9 s, 3.9 GB";
+
+"risposte un filo migliori, +0,6 s e +1,2 GB" = "slightly better answers, +0.6 s and +1.2 GB";
+
+"avvio..." = "starting...";
+
+/* %@ e' il nome dell'agente, non si traduce */
+"chiedo a %@ di accenderla..." = "asking %@ to turn it on...";
+
+/* prefisso tecnico di log, come [olivera] in Python: resta uguale nelle tre lingue */
+"[agente]" = "[agente]";
+
+"nessun dettaglio" = "no details";
+
+"non e' partita: %@" = "did not start: %@";
+
+"si e' fermata (codice %lld)" = "stopped (code %lld)";
+
+/* error.localizedDescription, gia' nella lingua di sistema */
+"non parte: %@" = "won't start: %@";
+
+"il server e' acceso da qualcos'altro: spegnilo da dove l'hai avviato" = "the server was turned on by something else: turn it off from wherever you started it";
+
+"non risponde piu': l'agente potrebbe averla riavviata, riprovo..." = "not responding anymore: the agent may have restarted it, retrying...";
+
+"non risponde alla salute" = "not answering the health check";
+
+"la prova non ha risposto" = "the test did not respond";
+
+"non risponde: %@" = "not responding: %@";
+
+"ordine eseguito (%@ %@) in %lld ms" = "command executed (%@ %@) in %lld ms";
+
+"ORDINE NON ESEGUITO: ha risposto a parole. Il server gira su codice vecchio." = "COMMAND NOT EXECUTED: it answered in words. The server is running old code.";
+
+"domanda: primo suono in %@ s" = "question: first sound in %@ s";
+
+"preparo (scarica qualche centinaio di MB)..." = "preparing (downloads a few hundred MB)...";
+
+"ambiente Python" = "Python environment";
+
+"pesi dell'ascolto" = "listening weights";
+
+"pesi della voce" = "voice weights";
+
+"indice del corpus" = "corpus index";
