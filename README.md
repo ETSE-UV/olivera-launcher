@@ -36,6 +36,10 @@ port of one file rather than a rewrite.
 - **Shows what the guide is based on**: the list of public documents behind
   the retrieval, with type and passage count, read from `GET /documenti`.
   Only public sources are listed; reserved material is counted, never named.
+  Each row opens: the public sections with their passage counts, and — only
+  when the app runs on the same machine as the server, and the file exists
+  there — *Open* and *Show in Finder*. The file path leaves the server only
+  towards localhost; a client on the network gets `null` and no buttons.
 - **Speaks Italian, Spanish and English**, following the language macOS
   assigns to the app (System Settings → General → Language & Region). The
   same choice is handed to the server as `OLIVERA_LANG`, so the status lines

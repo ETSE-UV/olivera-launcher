@@ -106,6 +106,24 @@
 
 "%lld documenti, %lld passaggi" = "%lld documentos, %lld pasajes";
 
+/* RigaDocumento in attesa di GET /documenti/{nome}, distinto da "leggo l'elenco..." che e' /documenti */
+"leggo il dettaglio..." = "leyendo el detalle...";
+
+/* titolo sopra l'elenco delle sezioni pubbliche di un documento */
+"sezioni" = "secciones";
+
+/* suffisso di ogni riga di sezione (RigaDocumento), concatenato con Text(_:) + Text(_:) */
+"passaggi" = "pasajes";
+
+/* D2/D2-bis: nil quando il server e' su un altro Mac, o quando il file non esiste su questo (la narrazione POI, source_path del PC Unity) - le due cause sono indistinguibili dal client, la frase non ne indovina una */
+"il file non e' su questo Mac" = "el archivo no está en este Mac";
+
+/* pulsante: apre il file con l'app di sistema (Piattaforma.apri) */
+"Apri" = "Abrir";
+
+/* pulsante: seleziona il file nel Finder (Piattaforma.mostraNelFinder) */
+"Mostra nel Finder" = "Mostrar en el Finder";
+
 /* Fase.descrizione */
 "spenta" = "apagada";
 

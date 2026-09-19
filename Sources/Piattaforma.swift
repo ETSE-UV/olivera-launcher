@@ -12,6 +12,9 @@
 // conoscerli tutti e due.
 
 import Foundation
+#if os(macOS)
+import AppKit
+#endif
 
 /// Un requisito che deve esserci prima di poter accendere.
 struct Requisito: Identifiable {
@@ -69,6 +72,22 @@ protocol Piattaforma {
     /// Windows: un'attivita' pianificata (`schtasks`) o un servizio; i comandi
     /// diventano `schtasks /Run /TN olivera` e `schtasks /End /TN olivera`.
     func agente() -> Agente?
+
+    /// Apre un file con l'applicazione di sistema associata (lotto APRI:
+    /// "si deve poter interagire con i file nella lista" - il primo modo di
+    /// interagire con un documento e' aprirlo come si aprirebbe dal Finder).
+    ///
+    /// Windows: `Process.Start(percorso)` con `UseShellExecute = true` fa la
+    /// stessa cosa - lascia decidere al sistema quale programma associare
+    /// all'estensione, invece di indovinarlo qui dentro.
+    func apri(file: URL)
+
+    /// Mostra il file nel gestore di file di sistema, gia' selezionato: la
+    /// seconda cosa che si puo' fare con un documento (D1, LOTTO-APRI.md),
+    /// per chi vuole vedere dove sta senza aprirlo.
+    ///
+    /// Windows: `explorer.exe /select,"percorso"`.
+    func mostraNelFinder(file: URL)
 }
 
 /// Un servizio di sistema che sa accendere e spegnere il server.
@@ -202,6 +221,14 @@ struct Mac: Piattaforma {
             + (pagine["Pages speculative"] ?? 0)
             + (pagine["Pages purgeable"] ?? 0)
         return (riutilizzabile * dimensionePagina) / totaleByte * 100
+    }
+
+    func apri(file: URL) {
+        NSWorkspace.shared.open(file)
+    }
+
+    func mostraNelFinder(file: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([file])
     }
 
     func requisiti(radice: URL) -> [Requisito] {
